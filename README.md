@@ -9,7 +9,7 @@ https://www.remko.de/en/products/new-energies/smart-heat-pumps/wkf-compact-serie
 
 
 ## Example commands (using curl)
-In the below examples you need to replace <YOUR_IP_ADDRESS> first. This IP address you can found in the settings section of your device.
+In the below examples you need to replace <YOUR_IP_ADDRESS> first. This IP address you can found in the settings section of your device. Read below how to find your IP Address.
 
 ### Switch OFF the Domestic Hot Water Heating
 ```
@@ -39,3 +39,16 @@ The below codes are used the get and set parameters to your device.
 | 1088        | 02 | Heating / Cooling - Heating  |
 | 1088        | 03 | Heating / Cooling - Standby  |
 | 1088        | 04 | Heating / Cooling - Cooling  |
+| 2263        | 00BE | Cooling Fixed value - 19 °C |
+| 2263        | 00C8 | Cooling Fixed value - 20 °C |
+
+
+### Note for commands table
+- For cooling (2263) use 4 digits hexadecimal values. (use this to modify the tempature based on the current dew point to avoid condensation on your floor and pips)
+
+
+## Getting your IP Address
+Information --> Basic Information --> Status --> Ip Address
+
+## Expert password
+To enter the Expert settings, you need a password. The default password is: 0321
