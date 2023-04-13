@@ -29,7 +29,7 @@ curl --request POST \
 
 ## REMKO Command table (version 4.23)
 The below codes are used the get and set parameters to your device.
-|REMKO Code   | Paramater | Description      |
+|REMKO Code   | Parameter | Description      |
 |-------------|------------|-----------------|
 | 1079        | 00 | Domestic Hot Water - Auto Comfort  |
 | 1079        | 01 | Domestic Hot Water - Auto eco  |
@@ -49,6 +49,7 @@ The below codes are used the get and set parameters to your device.
 
 ## Getting your IP Address
 Information --> Basic Information --> Status --> Ip Address
+
 
 ## Expert password
 To enter the Expert settings, you need a password. The default password is: 0321
