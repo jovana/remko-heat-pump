@@ -2,7 +2,8 @@
 
 If your REMKO Heat Pump has a SmartControl interface and it has connected to your lan network. You can send POST commands to control settings.
 
-![dashboard_remko.png]
+
+![Remko HA Dashboard](dashboard_remko.png "Remko HA Dashboard")
 
 ## REMKO WKF-Compact
 This manual has been tested on a WKF120 device, running software version **4.23**.
