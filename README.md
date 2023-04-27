@@ -40,10 +40,16 @@ Information --> Basic Information --> Status --> Ip Address
 To enter the Expert settings, you need a password. The default password is: 0321
 
 # Installing Remko Heatpump Sensors into Home Assistant
-Copy the folder ```remko_heatpump``` to the ```config/custom_components``` folder of your Home Assistant installation.
+1. Copy the folder ```remko_heatpump``` to the ```config/custom_components``` folder of your Home Assistant installation.
 
-Add to your configuration.yaml the below line:
+2. Add to your configuration.yaml the below line:
 ```
 remko_heatpump:
   # Make sure you have a line break if this is the last line in your configuration.yaml.
+```
+
+3. Add the IP address or hostname from the interface into const.py.
+Example:
+```
+BASE_API_URL = "http://192.168.1.68"
 ```
