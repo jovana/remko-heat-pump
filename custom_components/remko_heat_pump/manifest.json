@@ -1,0 +1,14 @@
+{
+    "domain": "remko_heatpump",
+    "name": "Remko Heatpump Sensor Integration",
+    "codeowners": [
+        "@jovana"
+    ],
+    "dependencies": [],
+    "documentation": "https://github.com/jovana/remko-heat-pump",
+    "iot_class": "local_polling",
+    "requirements": [
+        "requests"
+    ],
+    "version": "0.1.0"
+}
