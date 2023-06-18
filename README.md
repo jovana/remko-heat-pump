@@ -4,6 +4,7 @@ If your REMKO Heat Pump has a SmartControl interface and it has connected to you
 
 
 ![Remko HA Dashboard](dashboard_remko.png "Remko HA Dashboard")
+_To have this dashboard also check this template: https://github.com/jovana/remko-heat-pump/wiki/REMKO-Dashboard-template_
 
 ## REMKO WKF-Compact
 This manual has been tested on a WKF120 device, running software version **4.23**.
