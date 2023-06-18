@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
-from const import DOMAIN
+from .const import DOMAIN
 
 
 def setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Your controller/hub specific code."""
+
     # Data that you want to share with your platforms
     hass.data[DOMAIN] = {
         'storage_water_temp': 0,

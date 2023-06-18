@@ -1,6 +1,6 @@
 import requests
 import logging
-from const import BASE_API_URL
+from .const import BASE_API_URL
 
 _LOGGER = logging.getLogger(__name__)
 

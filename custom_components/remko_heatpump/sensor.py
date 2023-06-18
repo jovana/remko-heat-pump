@@ -3,16 +3,15 @@
 
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorEntity
-#  https://github.com/home-assistant/core/blob/dev/homeassistant/const.py
-from homeassistant.const import TEMP_CELSIUS, POWER_KILO_WATT
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.const import TEMP_CELSIUS, POWER_KILO_WATT, POWER_WATT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 import logging
 
-from const import DOMAIN
+from .const import DOMAIN
 from .remko import RemkoHeatpump
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,6 +53,10 @@ class RequestedWatertankTempSensor(SensorEntity):
         """Return the name of the sensor."""
         return 'Remko Requested Watertank Temperature'
 
+    @property
+    def icon(self):
+        return 'mdi:thermometer-water'
+
     @ property
     def state(self):
         """Return the state of the sensor."""
@@ -80,6 +83,11 @@ class RequestedWatertankTempSensor(SensorEntity):
 
 class PowerConsumptionSensor(SensorEntity):
     """Representation of a sensor."""
+    # _attr_device_class = SensorDeviceClass.POWER
+    # _attr_name = "Example Temperature"
+    # _attr_native_unit_of_measurement = TEMP_CELSIUS
+    # _attr_device_class = SensorDeviceClass.TEMPERATURE
+    # _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self) -> None:
         """Initialize the sensor."""
@@ -98,7 +106,19 @@ class PowerConsumptionSensor(SensorEntity):
     @ property
     def unit_of_measurement(self) -> str:
         """Return the unit of measurement."""
-        return POWER_KILO_WATT
+        return POWER_WATT
+
+    @property
+    def icon(self):
+        return 'mdi:lightning-bolt'
+
+    @property
+    def device_class(self):
+        return SensorDeviceClass.POWER
+
+    @property
+    def state_class(self):
+        return SensorStateClass.MEASUREMENT
 
     def update(self) -> None:
         """Fetch new state data for the sensor.
@@ -108,7 +128,7 @@ class PowerConsumptionSensor(SensorEntity):
 
         try:
             self.hass.data[DOMAIN]["current_power"] = int(
-                RemkoHeatpump().api_request(5320), 16)/10
+                RemkoHeatpump().api_request(5320), 16)*100
         except Exception as e:
             _LOGGER.error(
                 f"An exception occurred in PowerConsumptionSensor: {e.__str__()}")
@@ -126,6 +146,10 @@ class CurrentWatertankTempSensor(SensorEntity):
     def name(self) -> str:
         """Return the name of the sensor."""
         return 'Remko Current Watertank Temperature'
+
+    @property
+    def icon(self):
+        return 'mdi:thermometer-water'
 
     @ property
     def state(self):
@@ -202,6 +226,10 @@ class CurrentHeatingCircuitTemperatureSensor(SensorEntity):
         """Return the name of the sensor."""
         return 'Remko Current Heating Circuit Temperature'
 
+    @property
+    def icon(self):
+        return 'mdi:thermometer-check'
+
     @ property
     def state(self):
         """Return the state of the sensor."""
@@ -269,8 +297,10 @@ class CurrentOperatingStatusSensor(SensorEntity):
                 self.hass.data[DOMAIN]["current_operating_status"] = "idle"
             elif operation == "06":
                 self.hass.data[DOMAIN]["current_operating_status"] = "Heating"
-            # elif operation == "999":
-            #     self.hass.data[DOMAIN]["current_operating_status"] = "Cooling"
+            elif operation == "07":
+                self.hass.data[DOMAIN]["current_operating_status"] = "Cooling"
+            elif operation == "00":
+                self.hass.data[DOMAIN]["current_operating_status"] = "Blocked"
             else:
                 self.hass.data[DOMAIN]["current_operating_status"] = f"Status N/A: {operation}"
         except Exception as e:
@@ -291,6 +321,10 @@ class CurrentHeatingWaterTemperatureSensor(SensorEntity):
     def name(self) -> str:
         """Return the name of the sensor."""
         return 'Remko Current Heating Water Temperature'
+
+    @property
+    def icon(self):
+        return 'mdi:thermometer-check'
 
     @ property
     def state(self):
@@ -330,19 +364,14 @@ class CurrentStatusHeatingSensor(SensorEntity):
         """Return the name of the sensor."""
         return 'Remko Current Status Heating'
 
-    @ property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._state
-
     @property
     def icon(self):
         return 'mdi:heat-pump-outline'
 
-    # @ property
-    # def unit_of_measurement(self) -> str:
-    #     """Return the unit of measurement."""
-    #     return TEMP_CELSIUS
+    @ property
+    def state(self):
+        """Return the state of the sensor."""
+        return self._state
 
     def update(self) -> None:
         """Fetch new state data for the sensor.
@@ -390,11 +419,6 @@ class CurrentStatusHotWaterSensor(SensorEntity):
     @property
     def icon(self):
         return 'mdi:water'
-
-    # @ property
-    # def unit_of_measurement(self) -> str:
-    #     """Return the unit of measurement."""
-    #     return TEMP_CELSIUS
 
     def update(self) -> None:
         """Fetch new state data for the sensor.
