@@ -301,6 +301,12 @@ class CurrentOperatingStatusSensor(SensorEntity):
                 self.hass.data[DOMAIN]["current_operating_status"] = "Cooling"
             elif operation == "00":
                 self.hass.data[DOMAIN]["current_operating_status"] = "Blocked"
+            elif operation == "40":
+                self.hass.data[DOMAIN]["current_operating_status"] = "Ready"
+            elif operation == "0C":
+                self.hass.data[DOMAIN]["current_operating_status"] = "Frost Protection"
+            elif operation == "02":
+                self.hass.data[DOMAIN]["current_operating_status"] = "Defrosting"
             else:
                 self.hass.data[DOMAIN]["current_operating_status"] = f"Status N/A: {operation}"
         except Exception as e:
@@ -388,9 +394,9 @@ class CurrentStatusHeatingSensor(SensorEntity):
                 self.hass.data[DOMAIN]["current_status_heating"] = "Standby"
             elif operation == "04":
                 self.hass.data[DOMAIN]["current_status_heating"] = "Cooling"
-
             else:
-                self.hass.data[DOMAIN]["current_status_heating"] = f"Status N/A: {operation}"
+                self.hass.data[DOMAIN][
+                    "current_status_heating"] = f"Heating Status N/A: ({operation})"
 
         except Exception as e:
             _LOGGER.error(
@@ -438,7 +444,8 @@ class CurrentStatusHotWaterSensor(SensorEntity):
                 self.hass.data[DOMAIN]["current_status_hot_water"] = "Off"
 
             else:
-                self.hass.data[DOMAIN]["current_status_hot_water"] = f"Status N/A: {operation}"
+                self.hass.data[DOMAIN][
+                    "current_status_hot_water"] = f"Water Status N/A: ({operation})"
         except Exception as e:
             _LOGGER.error(
                 f"An exception occurred in CurrentStatusHotWaterSensor: {e.__str__()}")
