@@ -204,13 +204,25 @@ class CurrentOutsideTemperatureSensor(SensorEntity):
 
         This is the only method that should fetch new data for Home Assistant.
         """
+        int_value = 0
 
         try:
-            self.hass.data[DOMAIN]["current_outside_temp"] = int(
-                RemkoHeatpump().api_request(5055), 16)/10
+            int_value = RemkoHeatpump().api_request(5055)
         except Exception as e:
             _LOGGER.error(
                 f"An exception occurred in CurrentOutsideTemperatureSensor: {e.__str__()}")
+
+        int_value = int(int_value, 16)  # Convert to HEX
+        _LOGGER.warning(f"int_value: {int_value}")
+        # Assuming it represents a 16-bit signed integer
+        # Convert to signed value (2's complement)
+        signed_value = int_value - 0x10000 if int_value > 0x7FFF else int_value
+        _LOGGER.warning(f"signed_value: {signed_value}")
+        # Convert to floating-point value
+        float_value = signed_value / 10  # Assuming a specific scale for conversion
+        _LOGGER.warning(f"float_value: {float_value}")
+
+        self.hass.data[DOMAIN]["current_outside_temp"] = float_value
         self._state = self.hass.data[DOMAIN]["current_outside_temp"]
 
 
@@ -307,6 +319,8 @@ class CurrentOperatingStatusSensor(SensorEntity):
                 self.hass.data[DOMAIN]["current_operating_status"] = "Frost Protection"
             elif operation == "02":
                 self.hass.data[DOMAIN]["current_operating_status"] = "Defrosting"
+            elif operation == "03":
+                self.hass.data[DOMAIN]["current_operating_status"] = "Loading defrost buffer"
             else:
                 self.hass.data[DOMAIN]["current_operating_status"] = f"Status N/A: {operation}"
         except Exception as e:
