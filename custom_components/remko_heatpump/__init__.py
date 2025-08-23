@@ -1,4 +1,5 @@
 """Remko Sensor Integration."""
+from homeassistant.helpers.discovery import async_load_platform
 from __future__ import annotations
 
 from homeassistant.core import HomeAssistant
@@ -22,6 +23,8 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
         'current_status_hot_water': None,
     }
 
-    hass.helpers.discovery.load_platform('sensor', DOMAIN, {}, config)
+    # hass.helpers.discovery.load_platform('sensor', DOMAIN, {}, config)
+    hass.loop.call_soon_threadsafe(hass.async_create_task, async_load_platform(
+        hass, 'sensor', DOMAIN, {}, config))
 
     return True
