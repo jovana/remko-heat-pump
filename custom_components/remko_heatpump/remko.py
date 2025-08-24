@@ -5,8 +5,7 @@ from .const import BASE_API_URL
 _LOGGER = logging.getLogger(__name__)
 
 
-class RemkoHeatpump():
-    pass
+class RemkoHeatpump:
 
     def __init__(self) -> None:
         """Initialize the class."""

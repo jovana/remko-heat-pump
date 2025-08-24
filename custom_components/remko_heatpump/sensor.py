@@ -1,467 +1,272 @@
-"""Remko Sensor integration."""
-# https://developers.home-assistant.io/docs/core/entity/sensor
-
+"""Remko Sensor integration (YAML platform, no discovery)."""
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
-from homeassistant.const import TEMP_CELSIUS, POWER_KILO_WATT, POWER_WATT
+from datetime import timedelta
+import logging
+from typing import Any
+
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
+from homeassistant.const import UnitOfPower, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
-
-import logging
 
 from .const import DOMAIN
 from .remko import RemkoHeatpump
 
 _LOGGER = logging.getLogger(__name__)
 
+# Polling interval (adjust if you want slower/faster updates)
+SCAN_INTERVAL = timedelta(seconds=30)
+
+# Keys for shared values in hass.data[DOMAIN]
+_KEYS = {
+    "storage_water_temp": "storage_water_temp",
+    "current_power": "current_power",
+    "current_water_temp": "current_water_temp",
+    "current_outside_temp": "current_outside_temp",
+    "current_heating_circuit_temp": "current_heating_circuit_temp",
+    "current_operating_status": "current_operating_status",
+    "current_heating_water_temp": "current_heating_water_temp",
+    "current_status_heating": "current_status_heating",
+    "current_status_hot_water": "current_status_hot_water",
+}
+
 
 def setup_platform(
     hass: HomeAssistant,
     config: ConfigType,
     add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None
+    discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
-    """Set up the sensor platform."""
-    # We only want this platform to be set up via discovery.
+    """Set up the sensor platform (YAML)."""
 
-    if discovery_info is None:
-        return
-    add_entities([
-        RequestedWatertankTempSensor(),
-        PowerConsumptionSensor(),
-        CurrentWatertankTempSensor(),
-        CurrentOutsideTemperatureSensor(),
-        CurrentHeatingCircuitTemperatureSensor(),
-        CurrentOperatingStatusSensor(),
-        CurrentHeatingWaterTemperatureSensor(),
-        CurrentStatusHeatingSensor(),
-        CurrentStatusHotWaterSensor(),
-    ])
+    # Initialize shared dict if not present
+    hass.data.setdefault(
+        DOMAIN,
+        {
+            _KEYS["storage_water_temp"]: 0,
+            _KEYS["current_power"]: 0,
+            _KEYS["current_water_temp"]: 0,
+            _KEYS["current_outside_temp"]: 0,
+            _KEYS["current_heating_circuit_temp"]: 0,
+            _KEYS["current_operating_status"]: None,
+            _KEYS["current_heating_water_temp"]: 0,
+            _KEYS["current_status_heating"]: None,
+            _KEYS["current_status_hot_water"]: None,
+        },
+    )
 
+    # Single reusable client
+    client = RemkoHeatpump()
+    hass.data[DOMAIN]["client"] = client
 
-class RequestedWatertankTempSensor(SensorEntity):
-    """Representation of a sensor."""
-
-    def __init__(self) -> None:
-        """Initialize the sensor."""
-        self._state = None
-
-    @ property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        return 'Remko Requested Watertank Temperature'
-
-    @property
-    def icon(self):
-        return 'mdi:thermometer-water'
-
-    @ property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._state
-
-    @ property
-    def unit_of_measurement(self) -> str:
-        """Return the unit of measurement."""
-        return TEMP_CELSIUS
-
-    def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
-        try:
-            self.hass.data[DOMAIN]["storage_water_temp"] = int(
-                RemkoHeatpump().api_request(1082), 16)/10
-        except Exception as e:
-            _LOGGER.error(
-                f"An exception occurred in RequestedWatertankTempSensor: {e.__str__()}")
-        self._state = self.hass.data[DOMAIN]['storage_water_temp']
+    add_entities(
+        [
+            RequestedWatertankTempSensor(hass, client),
+            PowerConsumptionSensor(hass, client),
+            CurrentWatertankTempSensor(hass, client),
+            CurrentOutsideTemperatureSensor(hass, client),
+            CurrentHeatingCircuitTemperatureSensor(hass, client),
+            CurrentOperatingStatusSensor(hass, client),
+            CurrentHeatingWaterTemperatureSensor(hass, client),
+            CurrentStatusHeatingSensor(hass, client),
+            CurrentStatusHotWaterSensor(hass, client),
+        ],
+        True,  # call update() before first state set
+    )
 
 
-class PowerConsumptionSensor(SensorEntity):
-    """Representation of a sensor."""
-    # _attr_device_class = SensorDeviceClass.POWER
-    # _attr_name = "Example Temperature"
-    # _attr_native_unit_of_measurement = TEMP_CELSIUS
-    # _attr_device_class = SensorDeviceClass.TEMPERATURE
-    # _attr_state_class = SensorStateClass.MEASUREMENT
+class _BaseRemkoSensor(SensorEntity):
+    """Base class for Remko sensors with shared helpers."""
 
-    def __init__(self) -> None:
-        """Initialize the sensor."""
-        self._state = None
+    _attr_should_poll = True  # default, but explicit
 
-    @ property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        return 'Remko Power Consumption'
+    def __init__(self, hass: HomeAssistant, client: RemkoHeatpump) -> None:
+        self.hass = hass
+        self._client = client
+        self._attr_native_value: Any = None  # filled in update()
 
-    @ property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._state
+    # convenience for setting and mirroring hass.data[DOMAIN] values
+    def _set_shared(self, key: str, value: Any) -> None:
+        self.hass.data[DOMAIN][key] = value
+        self._attr_native_value = value
 
-    @ property
-    def unit_of_measurement(self) -> str:
-        """Return the unit of measurement."""
-        return POWER_WATT
 
-    @property
-    def icon(self):
-        return 'mdi:lightning-bolt'
-
-    @property
-    def device_class(self):
-        return SensorDeviceClass.POWER
-
-    @property
-    def state_class(self):
-        return SensorStateClass.MEASUREMENT
+class RequestedWatertankTempSensor(_BaseRemkoSensor):
+    _attr_name = "Remko Requested Watertank Temperature"
+    _attr_icon = "mdi:thermometer-water"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_unique_id = "remko_requested_watertank_temperature"
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
-
         try:
-            self.hass.data[DOMAIN]["current_power"] = int(
-                RemkoHeatpump().api_request(5320), 16)*100
-        except Exception as e:
-            _LOGGER.error(
-                f"An exception occurred in PowerConsumptionSensor: {e.__str__()}")
-        self._state = self.hass.data[DOMAIN]["current_power"]
+            hex_val = self._client.api_request(1082)
+            value = int(hex_val, 16) / 10 if hex_val else None
+            self._set_shared(_KEYS["storage_water_temp"], value)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error("RequestedWatertankTempSensor error: %s", e)
 
 
-class CurrentWatertankTempSensor(SensorEntity):
-    """Representation of a sensor."""
-
-    def __init__(self) -> None:
-        """Initialize the sensor."""
-        self._state = None
-
-    @ property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        return 'Remko Current Watertank Temperature'
-
-    @property
-    def icon(self):
-        return 'mdi:thermometer-water'
-
-    @ property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._state
-
-    @ property
-    def unit_of_measurement(self) -> str:
-        """Return the unit of measurement."""
-        return TEMP_CELSIUS
+class PowerConsumptionSensor(_BaseRemkoSensor):
+    _attr_name = "Remko Power Consumption"
+    _attr_icon = "mdi:lightning-bolt"
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_unique_id = "remko_power_consumption"
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
-
         try:
-            self.hass.data[DOMAIN]["current_water_temp"] = int(
-                RemkoHeatpump().api_request(5039), 16)/10
-        except Exception as e:
-            _LOGGER.error(
-                f"An exception occurred in CurrentWatertankTempSensor: {e.__str__()}")
-
-        self._state = self.hass.data[DOMAIN]["current_water_temp"]
+            hex_val = self._client.api_request(5320)
+            value = int(hex_val, 16) * 100 if hex_val else None
+            self._set_shared(_KEYS["current_power"], value)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error("PowerConsumptionSensor error: %s", e)
 
 
-class CurrentOutsideTemperatureSensor(SensorEntity):
-    """Representation of a sensor."""
-
-    def __init__(self) -> None:
-        """Initialize the sensor."""
-        self._state = None
-
-    @ property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        return 'Remko Current Outside Temperature'
-
-    @ property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._state
-
-    @ property
-    def unit_of_measurement(self) -> str:
-        """Return the unit of measurement."""
-        return TEMP_CELSIUS
+class CurrentWatertankTempSensor(_BaseRemkoSensor):
+    _attr_name = "Remko Current Watertank Temperature"
+    _attr_icon = "mdi:thermometer-water"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_unique_id = "remko_current_watertank_temperature"
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
-        int_value = 0
-
         try:
-            int_value = RemkoHeatpump().api_request(5055)
-        except Exception as e:
-            _LOGGER.error(
-                f"An exception occurred in CurrentOutsideTemperatureSensor: {e.__str__()}")
-
-        int_value = int(int_value, 16)  # Convert to HEX
-        _LOGGER.warning(f"int_value: {int_value}")
-        # Assuming it represents a 16-bit signed integer
-        # Convert to signed value (2's complement)
-        signed_value = int_value - 0x10000 if int_value > 0x7FFF else int_value
-        _LOGGER.warning(f"signed_value: {signed_value}")
-        # Convert to floating-point value
-        float_value = signed_value / 10  # Assuming a specific scale for conversion
-        _LOGGER.warning(f"float_value: {float_value}")
-
-        self.hass.data[DOMAIN]["current_outside_temp"] = float_value
-        self._state = self.hass.data[DOMAIN]["current_outside_temp"]
+            hex_val = self._client.api_request(5039)
+            value = int(hex_val, 16) / 10 if hex_val else None
+            self._set_shared(_KEYS["current_water_temp"], value)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error("CurrentWatertankTempSensor error: %s", e)
 
 
-class CurrentHeatingCircuitTemperatureSensor(SensorEntity):
-    """Representation of a sensor."""
-
-    def __init__(self) -> None:
-        """Initialize the sensor."""
-        self._state = None
-
-    @ property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        return 'Remko Current Heating Circuit Temperature'
-
-    @property
-    def icon(self):
-        return 'mdi:thermometer-check'
-
-    @ property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._state
-
-    @ property
-    def unit_of_measurement(self) -> str:
-        """Return the unit of measurement."""
-        return TEMP_CELSIUS
+class CurrentOutsideTemperatureSensor(_BaseRemkoSensor):
+    _attr_name = "Remko Current Outside Temperature"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_unique_id = "remko_current_outside_temperature"
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
-
         try:
-            self.hass.data[DOMAIN]["current_heating_circuit_temp"] = int(
-                RemkoHeatpump().api_request(5034), 16)/10
-        except Exception as e:
-            _LOGGER.error(
-                f"An exception occurred in CurrentHeatingCircuitTemperatureSensor: {e.__str__()}")
-        self._state = self.hass.data[DOMAIN]["current_heating_circuit_temp"]
+            hex_val = self._client.api_request(5055)
+            if not hex_val:
+                self._set_shared(_KEYS["current_outside_temp"], None)
+                return
+
+            raw = int(hex_val, 16)
+            # 16-bit signed (two's complement), scale 0.1
+            signed = raw - 0x10000 if raw > 0x7FFF else raw
+            value = signed / 10
+            self._set_shared(_KEYS["current_outside_temp"], value)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error("CurrentOutsideTemperatureSensor error: %s", e)
 
 
-class CurrentOperatingStatusSensor(SensorEntity):
-    """Representation of a sensor."""
-
-    def __init__(self) -> None:
-        """Initialize the sensor."""
-        self._state = None
-
-    @ property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        return 'Remko Current Operating Status'
-
-    @ property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._state
-
-    @property
-    def icon(self):
-        return 'mdi:run'
-
-    # @ property
-    # def unit_of_measurement(self) -> str:
-    #     """Return the unit of measurement."""
-    #     return TEMP_CELSIUS
+class CurrentHeatingCircuitTemperatureSensor(_BaseRemkoSensor):
+    _attr_name = "Remko Current Heating Circuit Temperature"
+    _attr_icon = "mdi:thermometer-check"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_unique_id = "remko_current_heating_circuit_temperature"
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
-
         try:
-            operation = RemkoHeatpump().api_request(5001)
-            if operation == "04":
-                self.hass.data[DOMAIN]["current_operating_status"] = "Loading DHW"
-            elif operation == "0A":
-                self.hass.data[DOMAIN]["current_operating_status"] = "Standby"
-            elif operation == "09":
-                self.hass.data[DOMAIN]["current_operating_status"] = "idle"
-            elif operation == "06":
-                self.hass.data[DOMAIN]["current_operating_status"] = "Heating"
-            elif operation == "07":
-                self.hass.data[DOMAIN]["current_operating_status"] = "Cooling"
-            elif operation == "00":
-                self.hass.data[DOMAIN]["current_operating_status"] = "Blocked"
-            elif operation == "40":
-                self.hass.data[DOMAIN]["current_operating_status"] = "Ready"
-            elif operation == "0C":
-                self.hass.data[DOMAIN]["current_operating_status"] = "Frost Protection"
-            elif operation == "02":
-                self.hass.data[DOMAIN]["current_operating_status"] = "Defrosting"
-            elif operation == "03":
-                self.hass.data[DOMAIN]["current_operating_status"] = "Loading defrost buffer"
-            else:
-                self.hass.data[DOMAIN]["current_operating_status"] = f"Status N/A: {operation}"
-        except Exception as e:
+            hex_val = self._client.api_request(5034)
+            value = int(hex_val, 16) / 10 if hex_val else None
+            self._set_shared(_KEYS["current_heating_circuit_temp"], value)
+        except Exception as e:  # noqa: BLE001
             _LOGGER.error(
-                f"An exception occurred in CurrentOperatingStatusSensor: {e.__str__()}")
-
-        self._state = self.hass.data[DOMAIN]["current_operating_status"]
+                "CurrentHeatingCircuitTemperatureSensor error: %s", e)
 
 
-class CurrentHeatingWaterTemperatureSensor(SensorEntity):
-    """Representation of a sensor."""
-
-    def __init__(self) -> None:
-        """Initialize the sensor."""
-        self._state = None
-
-    @ property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        return 'Remko Current Heating Water Temperature'
-
-    @property
-    def icon(self):
-        return 'mdi:thermometer-check'
-
-    @ property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._state
-
-    @ property
-    def unit_of_measurement(self) -> str:
-        """Return the unit of measurement."""
-        return TEMP_CELSIUS
+class CurrentOperatingStatusSensor(_BaseRemkoSensor):
+    _attr_name = "Remko Current Operating Status"
+    _attr_icon = "mdi:run"
+    _attr_unique_id = "remko_current_operating_status"
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
-
         try:
-            self.hass.data[DOMAIN]["current_heating_water_temp"] = int(
-                RemkoHeatpump().api_request(5190), 16)/10
-        except Exception as e:
-            _LOGGER.error(
-                f"An exception occurred in CurrentHeatingWaterTemperatureSensor: {e.__str__()}")
+            code = self._client.api_request(5001)
+            mapping = {
+                "04": "Loading DHW",
+                "0A": "Standby",
+                "09": "Idle",
+                "06": "Heating",
+                "07": "Cooling",
+                "00": "Blocked",
+                "40": "Ready",
+                "0C": "Frost Protection",
+                "02": "Defrosting",
+                "03": "Loading defrost buffer",
+            }
+            value = mapping.get(code, f"Status N/A: {code}")
+            self._set_shared(_KEYS["current_operating_status"], value)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error("CurrentOperatingStatusSensor error: %s", e)
 
-        self._state = self.hass.data[DOMAIN]["current_heating_water_temp"]
 
-
-class CurrentStatusHeatingSensor(SensorEntity):
-    """Representation of a sensor."""
-
-    def __init__(self) -> None:
-        """Initialize the sensor."""
-        self._state = None
-
-    @ property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        return 'Remko Current Status Heating'
-
-    @property
-    def icon(self):
-        return 'mdi:heat-pump-outline'
-
-    @ property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._state
+class CurrentHeatingWaterTemperatureSensor(_BaseRemkoSensor):
+    _attr_name = "Remko Current Heating Water Temperature"
+    _attr_icon = "mdi:thermometer-check"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_unique_id = "remko_current_heating_water_temperature"
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
         try:
-            operation = RemkoHeatpump().api_request(1088)
-            if operation == "01":
-                self.hass.data[DOMAIN]["current_status_heating"] = "Automatic"
-            elif operation == "02":
-                self.hass.data[DOMAIN]["current_status_heating"] = "Heating"
-            elif operation == "03":
-                self.hass.data[DOMAIN]["current_status_heating"] = "Standby"
-            elif operation == "04":
-                self.hass.data[DOMAIN]["current_status_heating"] = "Cooling"
-            else:
-                self.hass.data[DOMAIN][
-                    "current_status_heating"] = f"Heating Status N/A: ({operation})"
-
-        except Exception as e:
-            _LOGGER.error(
-                f"An exception occurred in CurrentStatusHeatingSensor: {e.__str__()}")
-
-        self._state = self.hass.data[DOMAIN]["current_status_heating"]
+            hex_val = self._client.api_request(5190)
+            value = int(hex_val, 16) / 10 if hex_val else None
+            self._set_shared(_KEYS["current_heating_water_temp"], value)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error("CurrentHeatingWaterTemperatureSensor error: %s", e)
 
 
-class CurrentStatusHotWaterSensor(SensorEntity):
-    """Representation of a sensor."""
-
-    def __init__(self) -> None:
-        """Initialize the sensor."""
-        self._state = None
-
-    @ property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        return 'Remko Current Status Hot Water'
-
-    @ property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._state
-
-    @property
-    def icon(self):
-        return 'mdi:water'
+class CurrentStatusHeatingSensor(_BaseRemkoSensor):
+    _attr_name = "Remko Current Status Heating"
+    _attr_icon = "mdi:heat-pump-outline"
+    _attr_unique_id = "remko_current_status_heating"
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
-
         try:
-            operation = RemkoHeatpump().api_request(1079)
-            if operation == "00":
-                self.hass.data[DOMAIN]["current_status_hot_water"] = "Auto Comfort"
-            elif operation == "01":
-                self.hass.data[DOMAIN]["current_status_hot_water"] = "Auto Eco"
-            elif operation == "02":
-                self.hass.data[DOMAIN]["current_status_hot_water"] = "Solar / PV"
-            elif operation == "03":
-                self.hass.data[DOMAIN]["current_status_hot_water"] = "Off"
+            code = self._client.api_request(1088)
+            mapping = {
+                "01": "Automatic",
+                "02": "Heating",
+                "03": "Standby",
+                "04": "Cooling",
+            }
+            value = mapping.get(code, f"Heating Status N/A: ({code})")
+            self._set_shared(_KEYS["current_status_heating"], value)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error("CurrentStatusHeatingSensor error: %s", e)
 
-            else:
-                self.hass.data[DOMAIN][
-                    "current_status_hot_water"] = f"Water Status N/A: ({operation})"
-        except Exception as e:
-            _LOGGER.error(
-                f"An exception occurred in CurrentStatusHotWaterSensor: {e.__str__()}")
 
-        self._state = self.hass.data[DOMAIN]["current_status_hot_water"]
+class CurrentStatusHotWaterSensor(_BaseRemkoSensor):
+    _attr_name = "Remko Current Status Hot Water"
+    _attr_icon = "mdi:water"
+    _attr_unique_id = "remko_current_status_hot_water"
+
+    def update(self) -> None:
+        try:
+            code = self._client.api_request(1079)
+            mapping = {
+                "00": "Auto Comfort",
+                "01": "Auto Eco",
+                "02": "Solar / PV",
+                "03": "Off",
+            }
+            value = mapping.get(code, f"Water Status N/A: ({code})")
+            self._set_shared(_KEYS["current_status_hot_water"], value)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error("CurrentStatusHotWaterSensor error: %s", e)
