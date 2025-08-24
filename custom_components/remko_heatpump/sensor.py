@@ -201,6 +201,7 @@ class CurrentOperatingStatusSensor(_BaseRemkoSensor):
                 "04": "Loading DHW",
                 "0A": "Standby",
                 "09": "Idle",
+                "05": "Storage Energy",
                 "06": "Heating",
                 "07": "Cooling",
                 "00": "Blocked",
